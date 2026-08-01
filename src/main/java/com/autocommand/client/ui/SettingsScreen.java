@@ -15,6 +15,7 @@ import java.util.List;
 
 /**
  * 设置界面：TCP 服务器参数（端口/超时/最大连接）+ 全局变量管理。
+ * 背景使用原版默认；布局宽度自适应屏幕（80%）。
  */
 public final class SettingsScreen extends Screen {
     private static final int VAR_TOP = 96;
@@ -34,10 +35,24 @@ public final class SettingsScreen extends Screen {
         this.parent = parent;
     }
 
+    /** 面板宽度：屏幕 80% */
+    private int panelW() {
+        return (int) (width * 0.8);
+    }
+
+    private int panelX() {
+        return (width - panelW()) / 2;
+    }
+
+    private int listBottom() {
+        return height - VAR_BOTTOM_OFFSET;
+    }
+
     @Override
     protected void init() {
-        int px = width / 2 - 160;
+        int px = panelX();
         int py = 30;
+        int pW = panelW();
 
         Config.ServerConfig server = Config.get().server();
         portBox = new EditBox(font, px + 14, py + 36, 70, 18, Component.literal("端口"));
@@ -82,7 +97,7 @@ public final class SettingsScreen extends Screen {
     }
 
     private EditBox newVarBox(String value) {
-        EditBox box = new EditBox(font, width / 2 - 160 + 16, 0, 246, 18, Component.literal("key=value"));
+        EditBox box = new EditBox(font, panelX() + 16, 0, panelW() - 64, 18, Component.literal("key=value"));
         box.setMaxLength(256);
         box.setValue(value);
         return box;
@@ -97,8 +112,11 @@ public final class SettingsScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
-        int px = width / 2 - 160;
+        int px = panelX();
         int py = 30;
+        int pW = panelW();
+        int listBottom = listBottom();
+        int right = px + pW;
 
         g.drawCenteredString(font, title, width / 2, 12, 0xFFFFFF);
         g.drawString(font, "服务器设置", px + 14, py + 16, 0xFF5FC9FF);
@@ -109,9 +127,6 @@ public final class SettingsScreen extends Screen {
                 px + 258, py + 26, NetworkServer.get().isRunning() ? 0xFF3FD97F : 0xFFFF5C5C);
 
         g.drawString(font, "全局变量（%变量名% 在指令中替换，数据包 params 优先）", px + 14, py + 64, 0xFF5FC9FF);
-        int listBottom = listBottom();
-        g.fill(px + 12, py + VAR_TOP, px + 326, listBottom, 0xFF101A2E);
-        g.fill(px + 12, py + VAR_TOP, px + 13, listBottom, 0xFF1E2C48);
 
         int maxScroll = Math.max(0, varBoxes.size() * ROW_HEIGHT - (listBottom - (py + VAR_TOP)));
         scrollOffset = Math.min(scrollOffset, maxScroll);
@@ -123,21 +138,22 @@ public final class SettingsScreen extends Screen {
                 continue;
             }
             box.setY(rowY + 3);
-            g.fill(px + 14, rowY, px + 326, rowY + ROW_HEIGHT - 1, i % 2 == 0 ? 0x22000000 : 0x00000000);
-            boolean hoverDel = mouseX >= px + 268 && mouseX < px + 288 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            g.drawString(font, "✕", px + 274, rowY + 7, hoverDel ? 0xFFFF5C5C : 0xFF8FA3C0);
+            boolean hoverDel = mouseX >= right - 30 && mouseX < right - 10 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
+            g.drawString(font, "✕", right - 26, rowY + 7, hoverDel ? 0xFFFF5C5C : 0xFF8FA3C0);
         }
         super.render(g, mouseX, mouseY, partialTick);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int px = width / 2 - 160;
+        int px = panelX();
         int py = 30;
+        int right = px + panelW();
+        int listBottom = listBottom();
         if (button == 0) {
             for (int i = 0; i < varBoxes.size(); i++) {
                 int rowY = py + VAR_TOP + i * ROW_HEIGHT - scrollOffset;
-                if (mouseX >= px + 268 && mouseX < px + 288 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
+                if (mouseX >= right - 30 && mouseX < right - 10 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                     EditBox box = varBoxes.remove(i);
                     removeWidget(box);
                     if (varBoxes.isEmpty()) {
@@ -152,19 +168,15 @@ public final class SettingsScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int px = width / 2 - 160;
+        int px = panelX();
         int py = 30;
         int listBottom = listBottom();
-        if (mouseY >= py + VAR_TOP && mouseY <= listBottom && mouseX >= px + 12 && mouseX <= px + 328) {
+        if (mouseY >= py + VAR_TOP && mouseY <= listBottom && mouseX >= px + 12 && mouseX <= px + panelW() - 12) {
             int maxScroll = Math.max(0, varBoxes.size() * ROW_HEIGHT - (listBottom - (py + VAR_TOP)));
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) Math.round(delta * 12)));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, delta);
-    }
-
-    private int listBottom() {
-        return height - VAR_BOTTOM_OFFSET;
     }
 
     private void restartTcp() {
