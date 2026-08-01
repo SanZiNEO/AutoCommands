@@ -116,20 +116,19 @@ AutoCommand 模组与外部事件系统配合使用，实现观众与游戏的�
 {
   "bindings": {
     "binding_name": {
-      "commandSet": {
-        "commands": [
-          {
-            "rawCommand": "/say Hello, %player_name%!",
-            "delay": 0,
-            "randomDelay": 0
-          },
-          {
-            "rawCommand": "/give %player_name% diamond 1",
-            "delay": 20,
-            "randomDelay": 10
-          }
-        ]
-      },
+      "triggerMode": "sequential",
+      "commands": [
+        {
+          "rawCommand": "/say Hello, %player_name%!",
+          "delay": 0,
+          "randomDelay": 0
+        },
+        {
+          "rawCommand": "/give %player_name% diamond 1",
+          "delay": 20,
+          "randomDelay": 10
+        }
+      ],
       "key": "key.keyboard.f"
     }
   },
@@ -143,36 +142,41 @@ AutoCommand 模组与外部事件系统配合使用，实现观众与游戏的�
 
 - `bindings`: 包含所有绑定配置的对象
   - `binding_name`: 绑定的名称，可通过该名称触发指令集
-    - `commandSet`: 指令集配置
-      - `commands`: 指令数组
-        - `rawCommand`: 原始指令字符串，支持变量替换
-        - `delay`: 固定延迟（游戏刻）
-        - `randomDelay`: 随机延迟范围（游戏刻）
+    - `triggerMode`: 触发模式
+      - `"sequential"`（默认）：顺序执行——触发一次，全部指令按顺序执行
+      - `"random"`：随机——每次触发随机执行一条
+    - `commands`: 指令数组
+      - `rawCommand`: 原始指令字符串，支持变量替换，`&&` 可串联多条
+      - `delay`: 固定延迟（游戏刻）
+      - `randomDelay`: 随机延迟范围（游戏刻）
     - `key`: 按键绑定，可为 null（表示无按键绑定）
 - `variables`: 全局变量定义
 
 ## 外部通信
 
-### 通信协议
+### 通信协议（与 外部信号源 对齐，2026-08-01 定稿）
 
-模组监听 TCP 端口 8888，接受 JSON 格式的数据包。
+模组监听 TCP 端口 8888，接受 JSON 信号包，**一行一个包**（`\n` 分隔）。
 
 ### 数据包格式
 
 ```json
 {
-  "name": "binding_name",
-  "variables": {
-    "player_name": "Notch",
-    "item": "emerald"
-  }
+  "type": "event",
+  "timestamp": 1785588111598,
+  "signals": [
+    { "id": "demo", "params": { "username": "张三", "count": "10" } }
+  ]
 }
 ```
 
 ### 字段说明
 
-- `name`: 要触发的绑定名称（必填）
-- `variables`: 变量替换值（可选）
+- `type`: 包分类（`interact` 高频攒批 / `gift` 即时），模组端可按需区分优先级，也可忽略
+- `timestamp`: 毫秒级时间戳（时序校验）
+- `signals`: 触发器数组（实时突发时可含多条，模组端**排队执行**）
+  - `id`: 要触发的绑定名称（必填，唯一匹配字段）
+  - `params`: 变量替换值（可选），模组端用 `%username%` 风格替换
 
 ### 发送数据包示例（Python）
 
@@ -184,14 +188,15 @@ import json
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect(('localhost', 8888))
 
-# 发送数据包
-data = {
-    "name": "example_binding",
-    "variables": {
-        "player_name": "Notch"
-    }
+# 发送信号包（一行一个包）
+packet = {
+    "type": "event",
+    "timestamp": 1785588111598,
+    "signals": [
+        {"id": "demo", "params": {"username": "张三", "count": "10"}}
+    ]
 }
-s.sendall(json.dumps(data).encode('utf-8'))
+s.sendall(json.dumps(packet, ensure_ascii=False).encode('utf-8') + b'\n')
 
 # 关闭连接
 s.close()
@@ -219,13 +224,15 @@ import json
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect(('localhost', 8888))
-s.sendall(json.dumps({
-    "name": "my_binding",
-    "variables": {
-        "player_name": "YourName",
-        "item": "diamond"
-    }
-}).encode('utf-8'))
+# 发送信号包（一行一个包，signals 内可含多条触发器）
+packet = {
+    "type": "interact",
+    "timestamp": 1785588111598,
+    "signals": [
+        {"id": "my_binding", "params": {"player_name": "YourName", "item": "diamond"}}
+    ]
+}
+s.sendall(json.dumps(packet, ensure_ascii=False).encode('utf-8') + b'\n')
 s.close()
 ```
 
@@ -260,23 +267,27 @@ gradlew.bat build  # Windows
 
 ## 项目状态
 
-**当前阶段：规划阶段**
+**当前阶段：已实现（v0.1.0）**
 
-项目目前处于规划阶段，已完成架构设计和功能需求分析。开发团队正在准备开始编码工作，重点是实现以下核心功能：
+代码已全部完成并通过 `gradlew build` 构建验证，产物为 `build/libs/auto_command-0.1.0.jar`。
 
-### 待实现的核心功能
+### 已实现的核心功能
 
-1. **通信管理模块**：实现稳定的TCP服务器
-2. **执行调度模块**：管理指令集的调度和执行
-3. **配置管理模块**：加载和保存配置文件
-4. **按键绑定模块**：游戏内按键绑定系统
-5. **游戏内UI系统**：提供直观的图形界面
+1. **TCP 通信模块**：流式按行切包、UTF-8 直出、突发信号全量入队、断线重连清旧连接
+2. **双模式触发**：
+   - 数据包模式（主）：TCP 信号包 `signals[].id` 匹配绑定 → 执行
+   - 手动模式：按键 → C2S 包 → 同一执行管线
+3. **指令链**：`&&` 串联多条指令（MC 原生不支持，模组自实现）
+4. **执行调度**：全局 FIFO 队列 + tick 驱动，延迟/随机延迟严格按上一条结束时间计算
+5. **配置管理**：`config/auto_command/config.json`，自动创建默认配置，`/autocommand reload` 重载
+6. **按键绑定模块**：动态 KeyMapping（200ms 防抖），配置即生效
+7. **游戏内 UI**：主界面（状态/队列/绑定列表）+ 绑定编辑（按键捕获/指令/延迟）+ 设置（端口/全局变量）
 
-### 开发时间表
+### 使用入口
 
-- **阶段一（架构完善）**：预计1-2周
-- **阶段二（功能增强）**：预计2-3周
-- **阶段三（集成测试）**：预计1-2周
+- 游戏内按 **H** 键或执行 `/autocommand ui` 打开配置界面
+- 服务端指令：`/autocommand reload`、`/autocommand status`、`/autocommand queue`、`/autocommand trigger <id>`
+- 手动模式：在绑定编辑界面点击「绑定按键」，按任意键/鼠标键即可绑定（ESC 取消）
 
 ## 风险评估与应对策略
 

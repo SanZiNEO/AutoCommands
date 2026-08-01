@@ -1,101 +1,54 @@
 {
   "bindings": {
-    "gift_100_diamond": {
-      "commandSet": {
-        "commands": [
-          {
-            "rawCommand": "/say 感谢 %username% 赠送的 %gift_name%!",
-            "delay": 0,
-            "randomDelay": 0
-          },
-          {
-            "rawCommand": "/give %username% diamond %gift_value%",
-            "delay": 20,
-            "randomDelay": 10
-          },
-          {
-            "rawCommand": "/say 这份礼物太棒了！",
-            "delay": 30,
-            "randomDelay": 5
-          }
-        ]
-      },
-      "key": null
-    },
-    "comment_666_teleport": {
-      "commandSet": {
-        "commands": [
-          {
-            "rawCommand": "/say %username% 想要被传送！",
-            "delay": 0,
-            "randomDelay": 0
-          },
-          {
-            "rawCommand": "/tp %username% ~ ~10 ~",
-            "delay": 10,
-            "randomDelay": 5
-          },
-          {
-            "rawCommand": "/say 传送成功！",
-            "delay": 20,
-            "randomDelay": 0
-          }
-        ]
-      },
-      "key": "key.keyboard.f"
-    },
-    "like_1000": {
-      "commandSet": {
-        "commands": [
-          {
-            "rawCommand": "/say 感谢 %username% 的点赞支持！",
-            "delay": 0,
-            "randomDelay": 0
-          },
-          {
-            "rawCommand": "/effect give %username% speed 60 1",
-            "delay": 10,
-            "randomDelay": 5
-          }
-        ]
-      },
-      "key": null
+    "demo": {
+      "triggerMode": "sequential",
+      "commands": [
+        {
+          "rawCommand": "/title @a title §6感谢 %username% 赠送的钻石！",
+          "delay": 0,
+          "randomDelay": 0
+        },
+        {
+          "rawCommand": "/summon minecraft:creeper ~ ~ ~ && /say 小心脚下！",
+          "delay": 10,
+          "randomDelay": 5
+        }
+      ],
+      "key": "key.keyboard.g"
     },
     "entry_welcome": {
-      "commandSet": {
-        "commands": [
-          {
-            "rawCommand": "/say 欢迎 %username% 进入房间！",
-            "delay": 0,
-            "randomDelay": 0
-          }
-        ]
-      },
-      "key": "key.mouse.button1"
-    },
-    "fansclub_join": {
-      "commandSet": {
-        "commands": [
-          {
-            "rawCommand": "/say 感谢 %username% 加入粉丝团！",
-            "delay": 0,
-            "randomDelay": 0
-          },
-          {
-            "rawCommand": "/give %username% gold_ingot 5",
-            "delay": 20,
-            "randomDelay": 10
-          }
-        ]
-      },
+      "triggerMode": "sequential",
+      "commands": [
+        {
+          "rawCommand": "/say 欢迎 %username% 进入房间！",
+          "delay": 0,
+          "randomDelay": 0
+        }
+      ],
       "key": null
+    },
+    "comment_666": {
+      "triggerMode": "random",
+      "commands": [
+        {
+          "rawCommand": "/effect give @a speed 10 2",
+          "delay": 0,
+          "randomDelay": 0
+        },
+        {
+          "rawCommand": "/effect give @a jump_boost 10 2",
+          "delay": 0,
+          "randomDelay": 0
+        }
+      ],
+      "key": "key.mouse.1"
     }
   },
   "variables": {
-    "player_name": "Steve"
+    "server_name": "AutoCommand 服务器"
   },
   "server": {
-    "port": 12345,
+    "port": 8888,
     "timeout": 5000,
     "maxConnections": 1
   }
