@@ -70,7 +70,7 @@ public final class NetworkChannel {
                     return;
                 }
                 String playerName = ctx.getSender() != null ? ctx.getSender().getName().getString() : null;
-                ExecutionScheduler.get().trigger(server, msg.bindingId, Map.of(), playerName);
+                ExecutionScheduler.get().trigger(server, msg.bindingId, Map.of(), playerName, null);
             });
             ctx.setPacketHandled(true);
         }

@@ -62,18 +62,22 @@ public final class CommandExecutor {
     /**
      * 以 OP4 服务器控制台权限执行单条指令。
      * 必须在服务器线程调用（scheduler tick 保证）。
+     *
+     * @return true = 执行成功；false = 指令不存在/参数错误/执行异常
      */
-    public static void execute(MinecraftServer server, String command) {
+    public static boolean execute(MinecraftServer server, String command) {
         if (command == null || command.isBlank()) {
-            return;
+            return false;
         }
         try {
             CommandSourceStack source = server.createCommandSourceStack()
                     .withPermission(4)
                     .withSuppressedOutput();
-            server.getCommands().performPrefixedCommand(source, command);
+            int result = server.getCommands().performPrefixedCommand(source, command);
+            return result > 0;
         } catch (Exception e) {
             LOGGER.error("指令执行失败: /{}", command, e);
+            return false;
         }
     }
 }

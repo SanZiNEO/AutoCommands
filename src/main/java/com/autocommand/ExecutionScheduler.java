@@ -42,9 +42,11 @@ public final class ExecutionScheduler {
      * 触发一个绑定：查配置 → 按触发模式选择指令 → 指令链拆分 → 入队。
      * 线程安全，可从 TCP 线程 / 按键线程 / 服务端指令调用。
      *
+     * @param receipt 回执来源（TCP 包携带，用于执行失败回执）；null = 无需回执
      * @return 是否命中绑定
      */
-    public boolean trigger(MinecraftServer server, String bindingId, Map<String, String> params, String playerName) {
+    public boolean trigger(MinecraftServer server, String bindingId, Map<String, String> params, String playerName,
+                           Packet.ReceiptInfo receipt) {
         Config.Binding binding = Config.get().getBinding(bindingId);
         if (binding == null) {
             LOGGER.debug("信号 {} 未匹配到绑定", bindingId);
@@ -66,7 +68,7 @@ public final class ExecutionScheduler {
                     continue;
                 }
                 String resolved = CommandExecutor.resolve(part.trim(), params, Config.get().variablesSnapshot(), playerName);
-                queue.add(new Task(cursor, resolved, bindingId));
+                queue.add(new Task(cursor, resolved, bindingId, receipt));
                 cursor++; // 链内相邻指令间隔 1 tick，保证顺序
             }
         }
@@ -91,7 +93,11 @@ public final class ExecutionScheduler {
         while (executed < MAX_PER_TICK && (task = queue.peek()) != null && task.dueTick <= now) {
             queue.poll();
             executed++;
-            CommandExecutor.execute(server, task.command);
+            boolean ok = CommandExecutor.execute(server, task.command);
+            if (!ok && task.receipt != null) {
+                // 指令执行失败：补发 error 回执（仅失败条目）
+                NetworkServer.get().sendErrorReceipt(task.receipt, "command failed: " + task.command);
+            }
         }
     }
 
@@ -105,6 +111,6 @@ public final class ExecutionScheduler {
         queue.clear();
     }
 
-    private record Task(int dueTick, String command, String bindingId) {
+    private record Task(int dueTick, String command, String bindingId, Packet.ReceiptInfo receipt) {
     }
 }

@@ -107,7 +107,7 @@ public final class AutoCommand {
                                     String id = StringArgumentType.getString(ctx, "id");
                                     boolean hit = ExecutionScheduler.get().trigger(
                                             ctx.getSource().getServer(), id, Map.of(),
-                                            ctx.getSource().getTextName());
+                                            ctx.getSource().getTextName(), null);
                                     if (hit) {
                                         ctx.getSource().sendSuccess(() -> Component.literal("已触发绑定: " + id), false);
                                     } else {

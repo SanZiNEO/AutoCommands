@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -42,6 +43,9 @@ public final class NetworkServer {
     private Thread acceptThread;
     private volatile int port;
     private volatile String lastError = "";
+
+    /** 回执写回锁（reader 线程与服务端 tick 线程并发写同一 socket） */
+    private final Object writeLock = new Object();
 
     public static NetworkServer get() {
         return INSTANCE;
@@ -205,16 +209,56 @@ public final class NetworkServer {
             return;
         }
 
+        long receivedAt = System.currentTimeMillis();
+        Receipt receipt = Receipt.queued(packet.timestamp, receivedAt);
         for (Packet.Signal signal : packet.signals) {
             if (signal == null || signal.id == null || signal.id.isBlank()) {
+                receipt.receipts.add(new Receipt.Entry(signal != null ? signal.sid : null, "error", "invalid signal"));
+                receipt.status = "error";
                 continue;
             }
             Map<String, String> params = signal.params != null ? signal.params : Map.of();
-            boolean hit = ExecutionScheduler.get().trigger(server, signal.id, params, null);
-            if (!hit) {
+            Packet.ReceiptInfo info = signal.sid != null ? new Packet.ReceiptInfo(packet.timestamp, signal.sid) : null;
+            boolean hit = ExecutionScheduler.get().trigger(server, signal.id, params, null, info);
+            if (hit) {
+                receipt.receipts.add(new Receipt.Entry(signal.sid, "queued", null));
+            } else {
                 LOGGER.debug("数据包信号未命中绑定: {}", signal.id);
+                receipt.receipts.add(new Receipt.Entry(signal.sid, "error", "unmatched id: " + signal.id));
+                receipt.status = "error";
             }
         }
+        // queued 必回（未匹配的条目在同一回执内标 error；一包一回执）
+        sendReceipt(receipt);
+    }
+
+    /**
+     * 同连接写回回执（一行一个 JSON）。
+     * 写锁保证多线程（reader 线程 / 服务端 tick 线程）并发写安全；
+     * 写失败直接丢弃（实时性优先，不重发）。
+     */
+    public void sendReceipt(Receipt receipt) {
+        Socket client = activeClient.get();
+        if (client == null || client.isClosed()) {
+            return;
+        }
+        synchronized (writeLock) {
+            try {
+                OutputStream out = client.getOutputStream();
+                out.write(GSON.toJson(receipt).getBytes(StandardCharsets.UTF_8));
+                out.write('\n');
+                out.flush();
+            } catch (IOException e) {
+                LOGGER.warn("回执发送失败（连接可能已断开）: {}", e.getMessage());
+            }
+        }
+    }
+
+    /** 指令执行失败补发 error 回执（仅失败条目，协议定稿） */
+    public void sendErrorReceipt(Packet.ReceiptInfo receipt, String error) {
+        Receipt r = Receipt.error(receipt.packetTimestamp(), System.currentTimeMillis());
+        r.receipts.add(new Receipt.Entry(receipt.sid(), "error", error));
+        sendReceipt(r);
     }
 
     private static String truncate(String s) {
