@@ -58,6 +58,7 @@ public final class ExecutionScheduler {
 
         List<Config.CommandEntry> selected = selectCommands(binding);
         int cursor = server.getTickCount();
+        int enqueued = 0;
         for (Config.CommandEntry entry : selected) {
             int delay = entry.delay + (entry.randomDelay > 0 ? random.nextInt(entry.randomDelay + 1) : 0);
             cursor += delay;
@@ -70,9 +71,11 @@ public final class ExecutionScheduler {
                 String resolved = CommandExecutor.resolve(part.trim(), params, Config.get().variablesSnapshot(), playerName);
                 queue.add(new Task(cursor, resolved, bindingId, receipt));
                 cursor++; // 链内相邻指令间隔 1 tick，保证顺序
+                enqueued++;
             }
         }
-        LOGGER.debug("绑定 {} 已入队 {} 条指令（模式 {}）", bindingId, queue.size(), binding.triggerMode);
+        LOGGER.debug("绑定 {} 本次入队 {} 条指令，队列总长 {}（模式 {}）",
+                bindingId, enqueued, queue.size(), binding.triggerMode);
         return true;
     }
 
