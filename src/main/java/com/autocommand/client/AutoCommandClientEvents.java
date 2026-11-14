@@ -44,7 +44,7 @@ public final class AutoCommandClientEvents {
                         .executes(ctx -> {
                             Config.get().reload();
                             KeyBindings.rebuild();
-                            ctx.getSource().sendSuccess(() -> Component.literal("AutoCommand 配置已重载"), false);
+                            ctx.getSource().sendSuccess(() -> Component.literal("AutoCommands 配置已重载"), false);
                             return 1;
                         })));
     }

@@ -20,13 +20,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * TCP 服务器：监听 8888（可配），接收 外部信号源 信号包。
+ * TCP 服务器：监听 8888（可配），接收外部信号包。
  *
- * 协议要点（与 外部信号源 定稿对齐）：
+ * 协议要点：
  * - 一行一个 JSON 包（\n 分隔）；readLine 天然处理半包/多包切包问题
  * - UTF-8 中文直出
  * - 一个包可含多条 signals，全部入队执行，不丢
- * - 外部信号源 断线重连是常态：新连接到来时替换并关闭旧连接
+ * - 发送端断线重连是常态：新连接到来时替换并关闭旧连接
  * - 单包解析失败记日志跳过，不影响后续包
  */
 public final class NetworkServer {
@@ -62,7 +62,7 @@ public final class NetworkServer {
             }
             this.port = port;
             lastError = "";
-            acceptThread = new Thread(this::acceptLoop, "AutoCommand-TCP");
+            acceptThread = new Thread(this::acceptLoop, "AutoCommands-TCP");
             acceptThread.setDaemon(true);
             acceptThread.start();
             // 等待 bind 结果（成功或失败），避免事件返回后状态未定
@@ -126,7 +126,7 @@ public final class NetworkServer {
             synchronized (listenLock) {
                 listenLock.notifyAll();
             }
-            LOGGER.info("AutoCommand TCP 服务器监听端口 {}", port);
+            LOGGER.info("AutoCommands TCP 服务器监听端口 {}", port);
             while (running.get() && !socket.isClosed()) {
                 Socket client;
                 try {
@@ -148,7 +148,7 @@ public final class NetworkServer {
         }
     }
 
-    /** 新连接替换旧连接（外部信号源 断线重连常态，旧资源直接清掉） */
+    /** 新连接替换旧连接（发送端断线重连常态，旧资源直接清掉） */
     private void handleNewConnection(Socket client) {
         Socket old = activeClient.getAndSet(client);
         if (old != null && !old.isClosed()) {
@@ -159,7 +159,7 @@ public final class NetworkServer {
             }
         }
         LOGGER.info("收到新连接: {}", client.getRemoteSocketAddress());
-        Thread reader = new Thread(() -> readLoop(client), "AutoCommand-TCP-Reader");
+        Thread reader = new Thread(() -> readLoop(client), "AutoCommands-TCP-Reader");
         reader.setDaemon(true);
         reader.start();
     }

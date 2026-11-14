@@ -1,15 +1,17 @@
 modLoader="javafml"
 loaderVersion="[47,)"
-license="All Rights Reserved"
-issueTrackerURL=""
+license="MIT"
+issueTrackerURL="https://github.com/SanZiNEO/AutoCommands/issues"
 
 [[mods]]
 modId="auto_command"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
+logoFile="logo.png"
+logoBlur=false
 description='''
-信号 → 指令映射器。接收外部信号（实时数据包 / 手动按键）→ 查配置映射 → 执行 MC 指令。
+信号 → 指令映射器。接收外部 TCP 信号或手动按键 → 查配置映射 → 执行 MC 指令。
 支持 && 指令链、指令排队、变量替换，不依赖任何其他模组。
 '''
 

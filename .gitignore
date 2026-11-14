@@ -4,4 +4,9 @@
 /log
 *.log
 /.idea
-*.txt
+.vscode/
+*.iml
+out/
+bin/
+.DS_Store
+*.class

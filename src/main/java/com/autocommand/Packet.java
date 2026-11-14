@@ -4,23 +4,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TCP 信号包数据模型，与 外部信号源 协议定稿对齐（2026-08-01，含回执扩展）。
+ * TCP 信号包数据模型，含回执扩展。
  * 一行一个包（\n 分隔），UTF-8 JSON。
  */
 public final class Packet {
 
-    /** 包分类：interact（高频攒批）/ gift（即时），模组端仅作参考，不强制 */
+    /** 包分类：batch（高频攒批）/ event（即时），模组端仅作参考，不强制 */
     public String type;
 
     /** 毫秒时间戳，对账键（包级） */
     public long timestamp;
 
-    /** 触发器数组，实时突发时可含多条，模组端排队执行 */
+    /** 触发器数组，突发信号时可含多条，模组端排队执行 */
     public List<Signal> signals;
 
     /** 单个触发器 */
     public static final class Signal {
-        /** 包内序号 1..n（外部信号源 每次发包从 1 重新编号）；模组端不生成不校验，回执原样回填 */
+        /** 包内序号 1..n（发送端每次发包从 1 重新编号）；模组端不生成不校验，回执原样回填 */
         public Integer sid;
         /** 要触发的绑定名称（唯一匹配字段） */
         public String id;

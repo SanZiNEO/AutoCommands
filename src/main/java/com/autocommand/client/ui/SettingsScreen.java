@@ -3,6 +3,7 @@ package com.autocommand.client.ui;
 import com.autocommand.Config;
 import com.autocommand.NetworkServer;
 import com.autocommand.client.AutoCommandClient;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -12,218 +13,298 @@ import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 设置界面：TCP 服务器参数（端口/超时/最大连接）+ 全局变量管理。
- * 背景使用原版默认；布局宽度自适应屏幕（80%）。
+ * 设置界面：TCP 端口 + 全局变量。
+ * 变量改为「变量名 / 值」两列，滚动时隐藏屏幕外控件。
  */
 public final class SettingsScreen extends Screen {
-    private static final int VAR_TOP = 96;
-    private static final int VAR_BOTTOM_OFFSET = 66;
-    private static final int ROW_HEIGHT = 24;
+    private static final int PANEL_TOP = 16;
+    private static final int ROW_HEIGHT = 26;
+    private static final int LIST_TOP = PANEL_TOP + 108;
+    private static final int FOOTER_HEIGHT = 42;
 
     private final Screen parent;
-
     private EditBox portBox;
-    private EditBox timeoutBox;
-    private EditBox maxConnBox;
-    private final List<EditBox> varBoxes = new ArrayList<>();
+    private final List<VarRow> varRows = new ArrayList<>();
     private int scrollOffset;
+    private String error = "";
 
     public SettingsScreen(Screen parent) {
-        super(Component.literal("AutoCommand 设置"));
+        super(Component.literal("设置"));
         this.parent = parent;
     }
 
-    /** 面板宽度：屏幕 80% */
     private int panelW() {
-        return (int) (width * 0.8);
+        return Ui.panelWidth(width);
     }
 
     private int panelX() {
-        return (width - panelW()) / 2;
+        return Ui.panelX(width);
+    }
+
+    private int keyWidth() {
+        return Math.max(80, (panelW() - 28 - 60) / 2);
     }
 
     private int listBottom() {
-        return height - VAR_BOTTOM_OFFSET;
+        return height - FOOTER_HEIGHT - 16;
     }
 
     @Override
     protected void init() {
+        super.init();
+
+        String currentPort = portBox != null
+                ? portBox.getValue()
+                : String.valueOf(Config.get().server().port);
+        List<String[]> currentVariables = new ArrayList<>();
+        if (!varRows.isEmpty()) {
+            for (VarRow row : varRows) {
+                currentVariables.add(new String[]{row.keyBox.getValue(), row.valueBox.getValue()});
+            }
+        } else {
+            for (Map.Entry<String, String> entry : Config.get().variables().entrySet()) {
+                currentVariables.add(new String[]{entry.getKey(), entry.getValue()});
+            }
+        }
+        if (currentVariables.isEmpty()) {
+            currentVariables.add(new String[]{"", ""});
+        }
+
         int px = panelX();
-        int py = 30;
-        int pW = panelW();
+        int pw = panelW();
+        int py = PANEL_TOP;
 
-        Config.ServerConfig server = Config.get().server();
-        portBox = new EditBox(font, px + 14, py + 36, 70, 18, Component.literal("端口"));
+        portBox = new EditBox(font, px + 92, py + 28, 64, 18, Component.literal("TCP 端口"));
         portBox.setMaxLength(5);
-        portBox.setFilter(s -> s.chars().allMatch(Character::isDigit));
-        portBox.setValue(String.valueOf(server.port));
-        timeoutBox = new EditBox(font, px + 96, py + 36, 70, 18, Component.literal("超时(ms)"));
-        timeoutBox.setMaxLength(6);
-        timeoutBox.setFilter(s -> s.chars().allMatch(Character::isDigit));
-        timeoutBox.setValue(String.valueOf(server.timeout));
-        maxConnBox = new EditBox(font, px + 178, py + 36, 70, 18, Component.literal("最大连接"));
-        maxConnBox.setMaxLength(3);
-        maxConnBox.setFilter(s -> s.chars().allMatch(Character::isDigit));
-        maxConnBox.setValue(String.valueOf(server.maxConnections));
+        portBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
+        portBox.setValue(currentPort);
         addRenderableWidget(portBox);
-        addRenderableWidget(timeoutBox);
-        addRenderableWidget(maxConnBox);
 
-        addRenderableWidget(Button.builder(Component.literal("重启 TCP"), b -> restartTcp())
-                .bounds(px + 258, py + 34, 60, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("应用端口"), b -> applyTcp())
+                .bounds(px + pw - 14 - 100, py + 28, 100, 18).build());
 
-        varBoxes.clear();
-        for (String key : Config.get().variables().keySet()) {
-            varBoxes.add(newVarBox(key + "=" + Config.get().variables().get(key)));
-        }
-        if (varBoxes.isEmpty()) {
-            varBoxes.add(newVarBox("server_name=AutoCommand 服务器"));
-        }
-        for (EditBox box : varBoxes) {
-            addRenderableWidget(box);
+        varRows.clear();
+        for (String[] data : currentVariables) {
+            addVarRow(data[0], data[1]);
         }
 
-        addRenderableWidget(Button.builder(Component.literal("＋ 添加变量"), b -> addVar())
-                .bounds(px + 14, listBottom() + 4, 100, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("＋ 添加变量"), b -> {
+            addVarRow("", "");
+            scrollOffset = Integer.MAX_VALUE;
+        }).bounds(px + 14, height - 54, 100, 18).build());
 
-        int y = height - 29;
+        int y = height - 30;
         addRenderableWidget(Button.builder(Component.literal("✔ 保存"), b -> save())
-                .bounds(width / 2 - 155, y, 150, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("取消"), b ->
-                        Minecraft.getInstance().setScreen(parent != null ? parent : new MainScreen()))
-                .bounds(width / 2 + 5, y, 150, 20).build());
+                .bounds(width / 2 - 154, y, 150, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("取消"), b -> onClose())
+                .bounds(width / 2 + 4, y, 150, 20).build());
     }
 
-    private EditBox newVarBox(String value) {
-        EditBox box = new EditBox(font, panelX() + 16, 0, panelW() - 64, 18, Component.literal("key=value"));
-        box.setMaxLength(256);
-        box.setValue(value);
-        return box;
+    private void addVarRow(String key, String value) {
+        VarRow row = new VarRow(key, value);
+        varRows.add(row);
+        addRenderableWidget(row.keyBox);
+        addRenderableWidget(row.valueBox);
+        addRenderableWidget(row.removeButton);
     }
 
-    private void addVar() {
-        EditBox box = newVarBox("new_var=value");
-        varBoxes.add(box);
-        addRenderableWidget(box);
+    private void removeVarRow(VarRow row) {
+        if (!varRows.remove(row)) {
+            return;
+        }
+        removeWidget(row.keyBox);
+        removeWidget(row.valueBox);
+        removeWidget(row.removeButton);
+        if (varRows.isEmpty()) {
+            addVarRow("", "");
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (portBox != null) {
+            portBox.tick();
+        }
+        for (VarRow row : varRows) {
+            row.keyBox.tick();
+            row.valueBox.tick();
+        }
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
+
         int px = panelX();
-        int py = 30;
-        int pW = panelW();
-        int listBottom = listBottom();
-        int right = px + pW;
+        int pw = panelW();
+        int py = PANEL_TOP;
+        int right = px + pw - 14;
+        int listTop = LIST_TOP;
+        int listBottom = Math.max(listTop + ROW_HEIGHT, listBottom());
 
-        g.drawCenteredString(font, title, width / 2, 12, 0xFFFFFF);
-        g.drawString(font, "服务器设置", px + 14, py + 16, 0xFF5FC9FF);
-        g.drawString(font, "端口", px + 14, py + 26, 0xFF8FA3C0);
-        g.drawString(font, "超时(ms)", px + 96, py + 26, 0xFF8FA3C0);
-        g.drawString(font, "最大连接", px + 178, py + 26, 0xFF8FA3C0);
-        g.drawString(font, "● " + (NetworkServer.get().isRunning() ? "运行中" : "已停止"),
-                px + 258, py + 26, NetworkServer.get().isRunning() ? 0xFF3FD97F : 0xFFFF5C5C);
+        Ui.panel(g, px, py, pw, height - 24);
+        Ui.bar(g, px, py, pw, 28);
+        Ui.bar(g, px, height - 36, pw, 28);
+        g.drawString(font, title.getString(), px + 14, py + 12, Ui.TEXT, false);
 
-        g.drawString(font, "全局变量（%变量名% 在指令中替换，数据包 params 优先）", px + 14, py + 64, 0xFF5FC9FF);
+        boolean running = NetworkServer.get().isRunning();
+        String status = running ? "TCP 运行中 · " + NetworkServer.get().getPort() : "TCP 已停止";
+        g.drawString(font, status, right - font.width(status), py + 12,
+                running ? Ui.SUCCESS : Ui.ERROR, false);
 
-        int maxScroll = Math.max(0, varBoxes.size() * ROW_HEIGHT - (listBottom - (py + VAR_TOP)));
-        scrollOffset = Math.min(scrollOffset, maxScroll);
+        g.drawString(font, "TCP 端口", px + 14, py + 32, Ui.MUTED, false);
+        g.fill(px + 12, py + 56, px + pw - 12, py + 57, Ui.DIVIDER);
 
-        for (int i = 0; i < varBoxes.size(); i++) {
-            EditBox box = varBoxes.get(i);
-            int rowY = py + VAR_TOP + i * ROW_HEIGHT - scrollOffset;
-            if (rowY < py + VAR_TOP - ROW_HEIGHT || rowY >= listBottom) {
-                continue;
-            }
-            box.setY(rowY + 3);
-            boolean hoverDel = mouseX >= right - 30 && mouseX < right - 10 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            g.drawString(font, "✕", right - 26, rowY + 7, hoverDel ? 0xFFFF5C5C : 0xFF8FA3C0);
+        g.drawString(font, "全局变量", px + 14, py + 66, Ui.ACCENT, false);
+        g.drawString(font, "数据包 params 优先于这里的值", px + 14, py + 80, Ui.MUTED, false);
+
+        int kw = keyWidth();
+        g.drawString(font, "变量名", px + 14, listTop - 14, Ui.MUTED, false);
+        g.drawString(font, "值", px + 14 + kw + 6, listTop - 14, Ui.MUTED, false);
+
+        int maxScroll = Math.max(0, varRows.size() * ROW_HEIGHT - (listBottom - listTop));
+        scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
+        for (int i = 0; i < varRows.size(); i++) {
+            VarRow row = varRows.get(i);
+            int rowY = listTop + i * ROW_HEIGHT - scrollOffset;
+            boolean visible = rowY + ROW_HEIGHT > listTop && rowY < listBottom;
+            row.setY(rowY);
+            row.setVisible(visible);
         }
+
+        if (maxScroll > 0) {
+            int trackX = px + pw - 8;
+            int trackHeight = listBottom - listTop;
+            g.fill(trackX, listTop, trackX + 3, listBottom, 0x30FFFFFF);
+            int thumbHeight = Math.max(12, trackHeight * trackHeight / (trackHeight + maxScroll));
+            int thumbY = listTop + (trackHeight - thumbHeight) * scrollOffset / maxScroll;
+            g.fill(trackX, thumbY, trackX + 3, thumbY + thumbHeight, 0x80FFFFFF);
+        }
+
+        if (!error.isEmpty()) {
+            g.drawString(font, error, right - font.width(error), py + 66, Ui.ERROR, false);
+        }
+
         super.render(g, mouseX, mouseY, partialTick);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int px = panelX();
-        int py = 30;
-        int right = px + panelW();
-        int listBottom = listBottom();
-        if (button == 0) {
-            for (int i = 0; i < varBoxes.size(); i++) {
-                int rowY = py + VAR_TOP + i * ROW_HEIGHT - scrollOffset;
-                if (mouseX >= right - 30 && mouseX < right - 10 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
-                    EditBox box = varBoxes.remove(i);
-                    removeWidget(box);
-                    if (varBoxes.isEmpty()) {
-                        addVar();
-                    }
-                    return true;
-                }
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int px = panelX();
-        int py = 30;
-        int listBottom = listBottom();
-        if (mouseY >= py + VAR_TOP && mouseY <= listBottom && mouseX >= px + 12 && mouseX <= px + panelW() - 12) {
-            int maxScroll = Math.max(0, varBoxes.size() * ROW_HEIGHT - (listBottom - (py + VAR_TOP)));
-            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) Math.round(delta * 12)));
+        int listTop = LIST_TOP;
+        int listBottom = Math.max(listTop + ROW_HEIGHT, listBottom());
+        if (mouseX >= panelX() && mouseX <= panelX() + panelW()
+                && mouseY >= listTop && mouseY <= listBottom) {
+            int maxScroll = Math.max(0, varRows.size() * ROW_HEIGHT - (listBottom - listTop));
+            scrollOffset = Math.max(0, Math.min(maxScroll,
+                    scrollOffset - (int) Math.round(delta * 18)));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
-    private void restartTcp() {
-        Config.ServerConfig server = Config.get().server();
-        int port = clampInt(portBox.getValue(), 1, 65535, server.port);
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == InputConstants.KEY_ESCAPE) {
+            onClose();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void onClose() {
+        Minecraft.getInstance().setScreen(parent != null ? parent : new MainScreen());
+    }
+
+    private void applyTcp() {
+        int port = clampInt(portBox.getValue(), 1, 65535, Config.get().server().port);
+        Config.get().server().port = port;
+        Config.get().save();
+
         NetworkServer.get().stop();
         NetworkServer.get().start(port);
+        if (!NetworkServer.get().isRunning()) {
+            error = "TCP 启动失败: " + NetworkServer.get().getLastError();
+        } else {
+            error = "";
+        }
     }
 
     private void save() {
         Config.ServerConfig server = Config.get().server();
         int newPort = clampInt(portBox.getValue(), 1, 65535, server.port);
-        int newTimeout = clampInt(timeoutBox.getValue(), 100, 60000, server.timeout);
-        int newMax = clampInt(maxConnBox.getValue(), 1, 10, server.maxConnections);
         boolean portChanged = newPort != server.port;
-
         server.port = newPort;
-        server.timeout = newTimeout;
-        server.maxConnections = newMax;
 
         Config.get().variables().clear();
-        for (EditBox box : varBoxes) {
-            String line = box.getValue().trim();
-            if (line.isEmpty()) {
+        for (VarRow row : varRows) {
+            String key = row.keyBox.getValue().trim();
+            if (key.isEmpty()) {
                 continue;
             }
-            int eq = line.indexOf('=');
-            if (eq <= 0) {
-                continue;
-            }
-            Config.get().variables().put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+            Config.get().variables().put(key, row.valueBox.getValue().trim());
         }
-
         Config.get().save();
         AutoCommandClient.onConfigChanged();
-        if (portChanged && NetworkServer.get().isRunning()) {
+
+        if (portChanged || !NetworkServer.get().isRunning()) {
             NetworkServer.get().stop();
             NetworkServer.get().start(newPort);
+            if (!NetworkServer.get().isRunning()) {
+                error = "TCP 启动失败: " + NetworkServer.get().getLastError();
+                return;
+            }
         }
-        Minecraft.getInstance().setScreen(parent != null ? parent : new MainScreen());
+        onClose();
     }
 
-    private static int clampInt(String s, int min, int max, int fallback) {
+    private static int clampInt(String value, int min, int max, int fallback) {
         try {
-            return Math.max(min, Math.min(max, Integer.parseInt(s.trim())));
+            return Math.max(min, Math.min(max, Integer.parseInt(value.trim())));
         } catch (NumberFormatException e) {
             return fallback;
+        }
+    }
+
+    private final class VarRow {
+        private final EditBox keyBox;
+        private final EditBox valueBox;
+        private final Button removeButton;
+
+        VarRow(String key, String value) {
+            int px = panelX();
+            int right = px + panelW() - 14;
+            int kw = keyWidth();
+
+            keyBox = new EditBox(font, px + 14, 0, kw, 18, Component.literal("变量名"));
+            keyBox.setMaxLength(64);
+            keyBox.setValue(key);
+
+            valueBox = new EditBox(font, px + 14 + kw + 6, 0, kw, 18, Component.literal("值"));
+            valueBox.setMaxLength(256);
+            valueBox.setValue(value);
+
+            removeButton = Button.builder(Component.literal("✕"), b -> removeVarRow(this))
+                    .bounds(right - 32, 0, 20, 18).build();
+        }
+
+        void setY(int y) {
+            keyBox.setY(y + 4);
+            valueBox.setY(y + 4);
+            removeButton.setY(y + 4);
+        }
+
+        void setVisible(boolean visible) {
+            keyBox.visible = visible;
+            keyBox.active = visible;
+            valueBox.visible = visible;
+            valueBox.active = visible;
+            removeButton.visible = visible;
+            removeButton.active = visible;
         }
     }
 }

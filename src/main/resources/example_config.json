@@ -4,30 +4,30 @@
       "triggerMode": "sequential",
       "commands": [
         {
-          "rawCommand": "/title @a title §6感谢 %username% 赠送的钻石！",
+          "rawCommand": "/say 收到信号：%message%",
           "delay": 0,
           "randomDelay": 0
         },
         {
-          "rawCommand": "/summon minecraft:creeper ~ ~ ~ && /say 小心脚下！",
+          "rawCommand": "/effect give @a speed 10 1 && /say 效果已应用",
           "delay": 10,
           "randomDelay": 5
         }
       ],
       "key": "key.keyboard.g"
     },
-    "entry_welcome": {
+    "welcome": {
       "triggerMode": "sequential",
       "commands": [
         {
-          "rawCommand": "/say 欢迎 %username% 进入房间！",
+          "rawCommand": "/say 欢迎 %username%！",
           "delay": 0,
           "randomDelay": 0
         }
       ],
       "key": null
     },
-    "comment_666": {
+    "random_effect": {
       "triggerMode": "random",
       "commands": [
         {
@@ -45,11 +45,9 @@
     }
   },
   "variables": {
-    "server_name": "AutoCommand 服务器"
+    "server_name": "AutoCommands 服务器"
   },
   "server": {
-    "port": 8888,
-    "timeout": 5000,
-    "maxConnections": 1
+    "port": 8888
   }
 }

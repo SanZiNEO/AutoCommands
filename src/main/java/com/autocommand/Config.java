@@ -148,15 +148,15 @@ public final class Config {
         Map<String, Binding> map = new LinkedHashMap<>();
         Binding demo = new Binding();
         demo.key = "key.keyboard.g";
-        demo.commands.add(new CommandEntry("/say 感谢 %username% 的礼物！", 0, 0));
-        demo.commands.add(new CommandEntry("/summon minecraft:creeper ~ ~ ~", 10, 5));
+        demo.commands.add(new CommandEntry("/say AutoCommands 已收到信号", 0, 0));
+        demo.commands.add(new CommandEntry("/say 第二条示例指令", 10, 5));
         map.put("demo", demo);
         return map;
     }
 
     private static Map<String, String> defaultVariables() {
         Map<String, String> map = new LinkedHashMap<>();
-        map.put("server_name", "AutoCommand 服务器");
+        map.put("server_name", "AutoCommands 服务器");
         return map;
     }
 

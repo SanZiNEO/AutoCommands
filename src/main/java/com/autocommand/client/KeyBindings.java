@@ -17,7 +17,7 @@ import java.util.Map;
  * - 打开 UI 键（固定注册，进游戏按键设置）
  * - 动态绑定键：配置里带 key 的绑定 → 创建 KeyMapping（构造即注册），
  *   UI 保存配置后调用 {@link #rebuild()} 重建
- * - 检测方式：isDown() + wasPressed 边缘检测（参考 参考模组 1.20），200ms 防抖
+ * - 检测方式：isDown() + wasPressed 边缘检测，200ms 防抖
  */
 public final class KeyBindings {
     private static final Logger LOGGER = LoggerFactory.getLogger("autocommand.KeyBindings");
@@ -74,7 +74,7 @@ public final class KeyBindings {
         if (uiDown && !uiKeyPressed) {
             uiKeyPressed = true;
             if (mc.screen == null) {
-                LOGGER.info("按键打开 AutoCommand 界面");
+                LOGGER.info("按键打开 AutoCommands 界面");
                 mc.setScreen(new MainScreen());
             }
         } else if (!uiDown) {
