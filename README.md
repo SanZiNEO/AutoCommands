@@ -28,7 +28,7 @@ AutoCommands 是一个 Minecraft 1.20.1 Forge 模组：接收外部 TCP 信号�
 ### 从发布包安装
 
 1. 安装 Minecraft 1.20.1 和对应版本的 Forge。
-2. 将 `auto_command-0.1.0.jar` 放入游戏的 `mods/` 目录。
+2. 将 `auto_commands-0.1.0.jar` 放入游戏的 `mods/` 目录。
 3. 启动游戏。单机模式只需客户端安装；专用服务器需要服务端也安装。
 
 ### 从源码构建
@@ -48,7 +48,7 @@ gradlew.bat build
 构建产物：
 
 ```text
-build/libs/auto_command-0.1.0.jar
+build/libs/auto_commands-0.1.0.jar
 ```
 
 ## 快速开始
@@ -282,7 +282,7 @@ gradlew.bat build
 ./gradlew clean
 ```
 
-构建要求 JDK 17。产物在 `build/libs/auto_command-0.1.0.jar`。
+构建要求 JDK 17。产物在 `build/libs/auto_commands-0.1.0.jar`。
 
 ## 测试
 
